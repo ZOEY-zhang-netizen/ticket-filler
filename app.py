@@ -10,7 +10,6 @@ from pathlib import Path
 from urllib.parse import quote
 
 from flask import Flask, jsonify, render_template_string, request, send_file
-from werkzeug.utils import secure_filename
 
 from extractor import extract_text
 from excel_writer import write_excel
@@ -411,8 +410,7 @@ def upload():
     with tempfile.TemporaryDirectory() as tmpdir:
         texts = []
         for idx, fh in enumerate(files, start=1):
-            filename = secure_filename(fh.filename)
-            suffix = Path(filename).suffix.lower()
+            suffix = Path(fh.filename).suffix.lower()
             saved = Path(tmpdir) / f'{idx}{suffix}'
             fh.save(saved)
             texts.append(extract_text(str(saved)))
