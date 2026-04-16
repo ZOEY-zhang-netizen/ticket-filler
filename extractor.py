@@ -5,11 +5,7 @@ from __future__ import annotations
 import base64
 import os
 import re
-import zipfile
 from pathlib import Path
-from xml.etree import ElementTree as ET
-
-W_NS = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 
 
 def _normalize_text(text: str) -> str:
@@ -23,26 +19,30 @@ def _normalize_text(text: str) -> str:
 
 def extract_text_from_docx(path: str) -> str:
     """Read DOCX while preserving paragraph and table row boundaries."""
-    with zipfile.ZipFile(path, 'r') as zf:
-        xml = zf.read('word/document.xml')
-    root = ET.fromstring(xml)
+    try:
+        from docx import Document
+        from docx.oxml.ns import qn
+    except ImportError as exc:
+        raise ImportError('DOCX 解析需要 python-docx') from exc
+
+    doc = Document(path)
     lines: list[str] = []
-    for elem in root.iter():
-        tag = elem.tag
-        if tag == f'{W_NS}tr':
-            cells = []
-            for tc in elem.findall(f'{W_NS}tc'):
-                parts = [t.text or '' for t in tc.iter(f'{W_NS}t')]
-                cell_text = ''.join(parts).strip()
-                if cell_text:
-                    cells.append(cell_text)
-            if cells:
-                lines.append('\t'.join(cells))
-        elif tag == f'{W_NS}p':
-            parts = [t.text or '' for t in elem.iter(f'{W_NS}t')]
-            para = ''.join(parts).strip()
-            if para:
-                lines.append(para)
+    for block in doc.element.body:
+        if block.tag == qn('w:p'):
+            text = ''.join(t.text or '' for t in block.iter(qn('w:t'))).strip()
+            if text:
+                lines.append(text)
+        elif block.tag == qn('w:tbl'):
+            for tr in block.iter(qn('w:tr')):
+                cells = []
+                for tc in tr.findall(qn('w:tc')):
+                    cell_text = ''.join(
+                        t.text or '' for t in tc.iter(qn('w:t'))
+                    ).strip()
+                    if cell_text:
+                        cells.append(cell_text)
+                if cells:
+                    lines.append('\t'.join(cells))
     return _normalize_text('\n'.join(lines))
 
 
