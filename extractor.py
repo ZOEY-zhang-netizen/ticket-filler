@@ -13,6 +13,14 @@ from pathlib import Path
 _CT_WORD = 'wordprocessingml.document'
 _CT_PPTX = 'presentationml.presentation'
 
+# Regex to split a table "备注/details" cell on ；before known sub-section markers
+# so that 销售时间/使用时间/购买规则 etc. each start their own line.
+_CELL_SPLIT_RE = re.compile(
+    r'；(?=(?:\d+[、．.）)]\s*)?(?:销售时间|使用时间|适用人群|使用人群|购买规则|退改规则|退改说明|退款规则|退票规则|销售渠道|抖音平台|抖音直播间|直播间|POI)(?:[：:；]|$))'
+)
+# Identifies a cell as a "details" cell (starts with 销售时间 or numbered 销售时间)
+_IS_DETAIL_CELL_RE = re.compile(r'^(?:\d+[、．.）)]\s*)?销售时间[：:]')
+
 
 def _normalize_text(text: str) -> str:
     text = text.replace('\r', '\n')
@@ -55,15 +63,24 @@ def extract_text_from_docx(path: str) -> str:
                 lines.append(text)
         elif block.tag == qn('w:tbl'):
             for tr in block.iter(qn('w:tr')):
-                cells = []
+                price_cells: list[str] = []
+                detail_lines: list[str] = []
                 for tc in tr.findall(qn('w:tc')):
                     cell_text = ''.join(
                         t.text or '' for t in tc.iter(qn('w:t'))
                     ).strip()
-                    if cell_text:
-                        cells.append(cell_text)
-                if cells:
-                    lines.append('\t'.join(cells))
+                    if not cell_text:
+                        continue
+                    if _IS_DETAIL_CELL_RE.match(cell_text):
+                        # Details cell (备注): split on ；before section markers
+                        # so that 销售时间/使用时间/购买规则 each start their own line
+                        parts = _CELL_SPLIT_RE.split(cell_text)
+                        detail_lines.extend(p.strip() for p in parts if p.strip())
+                    else:
+                        price_cells.append(cell_text)
+                if price_cells:
+                    lines.append('\t'.join(price_cells))
+                lines.extend(detail_lines)
     return _normalize_text('\n'.join(lines))
 
 
