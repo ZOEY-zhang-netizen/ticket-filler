@@ -1,11 +1,17 @@
-"""Unified text extraction for DOCX / PDF / image uploads."""
+"""Unified text extraction for DOCX / PPTX / PDF / image uploads."""
 
 from __future__ import annotations
 
 import base64
 import os
 import re
+import zipfile
 from pathlib import Path
+
+
+# OOXML content-type fragments used to detect actual file type from ZIP
+_CT_WORD = 'wordprocessingml.document'
+_CT_PPTX = 'presentationml.presentation'
 
 
 def _normalize_text(text: str) -> str:
@@ -15,6 +21,21 @@ def _normalize_text(text: str) -> str:
     text = re.sub(r' *\n *', '\n', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
+
+
+def _sniff_ooxml(path: str) -> str | None:
+    """Return '.docx' or '.pptx' by inspecting [Content_Types].xml inside the ZIP.
+    Returns None if the file is not a recognisable OOXML package."""
+    try:
+        with zipfile.ZipFile(path, 'r') as zf:
+            ct_xml = zf.read('[Content_Types].xml').decode('utf-8', errors='replace')
+    except Exception:
+        return None
+    if _CT_WORD in ct_xml:
+        return '.docx'
+    if _CT_PPTX in ct_xml:
+        return '.pptx'
+    return None
 
 
 def extract_text_from_docx(path: str) -> str:
@@ -43,6 +64,26 @@ def extract_text_from_docx(path: str) -> str:
                         cells.append(cell_text)
                 if cells:
                     lines.append('\t'.join(cells))
+    return _normalize_text('\n'.join(lines))
+
+
+def extract_text_from_pptx(path: str) -> str:
+    """Read PPTX: extract text from all shapes on all slides in order."""
+    try:
+        from pptx import Presentation
+    except ImportError as exc:
+        raise ImportError('PPTX 解析需要 python-pptx') from exc
+
+    prs = Presentation(path)
+    lines: list[str] = []
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            for para in shape.text_frame.paragraphs:
+                text = ''.join(run.text for run in para.runs).strip()
+                if text:
+                    lines.append(text)
     return _normalize_text('\n'.join(lines))
 
 
@@ -107,8 +148,16 @@ def extract_text_from_image(path: str) -> str:
 
 def extract_text(path: str) -> str:
     suffix = Path(path).suffix.lower()
-    if suffix == '.docx':
+
+    # For Office Open XML formats (.docx / .pptx), sniff the actual content
+    # type from [Content_Types].xml so that misnamed files (e.g. a .pptx
+    # uploaded with a .docx extension) are routed correctly.
+    if suffix in {'.docx', '.pptx'}:
+        actual = _sniff_ooxml(path) or suffix
+        if actual == '.pptx':
+            return extract_text_from_pptx(path)
         return extract_text_from_docx(path)
+
     if suffix == '.pdf':
         return extract_text_from_pdf(path)
     if suffix in {'.jpg', '.jpeg', '.png'}:

@@ -20,7 +20,7 @@ app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
 
 BASE_DIR = Path(__file__).parent
 TEMPLATE_PATH = str(BASE_DIR / 'template.xlsx')
-ALLOWED_EXTENSIONS = {'.docx', '.pdf', '.jpg', '.jpeg', '.png'}
+ALLOWED_EXTENSIONS = {'.docx', '.pptx', '.pdf', '.jpg', '.jpeg', '.png'}
 
 HTML = r"""
 <!DOCTYPE html>
@@ -228,7 +228,7 @@ HTML = r"""
 
     <form id="form" enctype="multipart/form-data">
       <div class="upload-zone" id="zone">
-        <input id="fileInput" name="files" type="file" multiple accept=".docx,.pdf,.jpg,.jpeg,.png">
+        <input id="fileInput" name="files" type="file" multiple accept=".docx,.pptx,.pdf,.jpg,.jpeg,.png">
         <svg class="upload-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect width="48" height="48" rx="12" fill="#fff0f3"/>
           <path d="M24 30V18M24 18L19 23M24 18L29 23" stroke="#fe2c55" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -236,7 +236,7 @@ HTML = r"""
           <path d="M16 28c-3.314 0-6-2.686-6-6a6 6 0 015.25-5.948A8 8 0 0130.5 18.5 5.5 5.5 0 0138 24c0 2.21-1.343 4.12-3.286 5" stroke="#ffb3c1" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
         <div class="upload-text">点击或拖拽上传政策文件</div>
-        <div class="upload-hint">支持 .docx / .pdf / .jpg / .jpeg / .png，总大小不超过 20MB</div>
+        <div class="upload-hint">支持 .docx / .pptx / .pdf / .jpg / .jpeg / .png，总大小不超过 20MB</div>
       </div>
       <div class="file-list" id="fileList"></div>
       <button class="btn" id="btn" type="submit" disabled>
